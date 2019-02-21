@@ -1,0 +1,383 @@
+<section>
+
+<style> 
+.reveal h1,
+.reveal h2,
+.reveal h3,
+.reveal h4,
+.reveal h5,
+.reveal h6 {
+  text-transform: none;
+}
+
+</style>
+
+<h2>Firebaseアプリ開発のテストについて考えてみる</h2>
+
+<p>Daiki Urata (<a href="https://twitter.com/daiki7nohe">@daio7nohe</a>)</p>
+
+</section>
+<section>
+
+<h2>話すこと</h2>
+
+<ul>
+  <li>きっかけ</li>
+  <li>Unit Testingについて考える</li>
+  <li>E2E Testingについて考える</li>
+  <li>まとめ</li>
+</ul>
+
+</section>
+<section>
+
+<h2>きっかけ</h2>
+
+<ul>
+  <li>Firebaseめっちゃ便利、だけど実プロダクトでの採用が不安</li>
+  <li>Security Rulesとか少し間違えただけで、一気に脆弱性を生んでしまいそうで怖い</li>
+</ul>
+
+</section>
+<section>
+
+<h2>テストをしっかり書こう！</h2>
+
+</section>
+<section>
+
+<h2>ユニットテストについて考える</h2>
+
+</section>
+<section>
+
+<h2>Cloud Firestoreのテスト</h2>
+
+</section>
+<section>
+
+<ul>
+  <li>マストで書く</li>
+  <li>Security Rules間違えて情報が漏れたら大変</li>
+</ul>
+
+</section>
+<section>
+
+<p><a href="https://gigazine.net/news/20180625-firebase-vulnerability-data-loss/">合計1億件以上の個人情報がFirebaseの脆弱性によって公開状態に</a> (Gigazineより)</p>
+
+<p>↓</p>
+
+<p>「Firebaseの脆弱性」ではなく、開発者がSecurity Rulesをしっかり設定していなかったために起こった出来事だった模様</p>
+
+</section>
+<section>
+
+<h2>Console Simulator</h2>
+
+<ul>
+  <li>コンソールから手軽にテスト</li>
+  <li>試しながらSecurity Rulesを記述できる</li>
+  <li>手動でのテスト</li>
+</ul>
+
+</section>
+<section>
+
+<h2>Local Emulator</h2>
+
+<ul>
+  <li>ローカルにEmulatorをインストール必要あり</li>
+  <li>現在はNode.js SDK (<code>@firebase/testing</code>)のみサポート</li>
+  <li>Jest/Mochaなどでテストを書いていく感じ</li>
+  <li>カバレッジレポートも出してくれる</li>
+</ul>
+
+</section>
+<section>
+
+<p>わざわざテスト用Firebaseプロジェクトを用意せずにCIでテスト自動化できる ！</p>
+
+<p><img class="emoji" alt=":tada:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f389.png"></p>
+
+<p>参考: <a href="https://techlife.cookpad.com/entry/2018/11/05/143000">Cloud Firestoreのrulesのテストを全てローカルエミュレータを使うように書き換えた話</a></p>
+
+</section>
+<section>
+
+<p>Emulatorインストール、起動</p>
+
+<pre><code>$ firebase setup:emulators:firestore
+$ firebase serve --only firestore
+</code></pre>
+
+</section>
+<section>
+
+<h3>セットアップ</h3>
+
+<pre><code>import * as firebase from "@firebase/testing";
+
+firebase.initializeTestApp({
+   projectId: "my-test-project",
+   auth: { uid: "alice", email: "alice@example.com" }
+ });
+</code></pre>
+
+</section>
+<section>
+
+<h2>デモ</h2>
+
+</section>
+<section>
+
+<p>どんなものか触ってみたい方は</p>
+
+<p><a href="https://github.com/firebase/quickstart-nodejs">https://github.com/firebase/quickstart-nodejs</a></p>
+
+<p>に公式サンプルがあります。</p>
+
+</section>
+<section>
+
+<h2>Cloud Functionsのテスト</h2>
+
+</section>
+<section>
+
+<h3>Http Functionsの場合</h3>
+
+<pre><code>exports.helloWorld = functions.https
+    .onRequest((request, response) =&gt; {
+      response.send("Hello from Firebase!");
+    });
+</code></pre>
+
+</section>
+<section>
+
+<h3>ブラウザで手動確認</h3>
+
+<pre><code>$ firebase serve --only functions
+</code></pre>
+
+</section>
+<section>
+
+<h3>Firestore Functionsの場合</h3>
+
+<pre><code>exports.createUsername = functions.firestore
+  .document("user/{userId}")
+  .onCreate((snap, context) =&gt; {
+    const newValue = snap.data();
+    const username = newValue.email.split("@")[0];
+    return snap.ref.set({ username }, { merge: true });
+  });
+</code></pre>
+
+</section>
+<section>
+
+<h3>Cloud Functions shellで手動確認</h3>
+
+<pre><code>$ firebase functions:shell
+firebase &gt; createUsername({ email: "7noeh@example.com" })
+'Successfully invoked function.'
+firebase &gt; info: User function triggered, starting execution
+info: Execution took 1522 ms, user function completed successfully
+</code></pre>
+
+</section>
+<section>
+
+<h2>テストコードは？</h2>
+
+</section>
+<section>
+
+<h3><code>firebase-functions-test</code></h3>
+
+<ul>
+  <li>config値のモック</li>
+  <li>non-HTTP functionsの呼び出しを行ってくれる</li>
+  <li>offline/onlineモードがある</li>
+</ul>
+
+</section>
+<section>
+
+<h3>config値のモック</h3>
+
+<pre><code>// config値
+{
+  "someservice": {
+    "key":"THE API KEY"
+  }
+}
+</code></pre>
+
+<pre><code>// functionsのコード
+const functions = require('firebase-functions');
+const key = functions.config().someservice.key;
+</code></pre>
+
+<pre><code>// config値のモック
+const test = require("firebase-functions-test")();
+test.mockConfig({ someservice: { key: '23wr42ewr34' }});
+</code></pre>
+
+</section>
+<section>
+
+<p>Firestore Functions (non-Http Functions)のテスト</p>
+
+<pre><code>const test = require("firebase-functions-test")();
+const myFunctions = require('../index.js');
+// Make snapshot
+const snap = test.firestore.makeDocumentSnapshot({foo: 'bar'}, 'document/path');
+// Call wrapped function with the snapshot
+const wrapped = test.wrap(myFunctions.makeUppercase);
+wrapped(snap);
+</code></pre>
+
+</section>
+<section>
+
+<p>Http Functionの例</p>
+
+<pre><code>exports.helloWorld = functions.https
+    .onRequest((request, response) =&gt; {
+      response.send("Hello from Firebase!");
+    });
+</code></pre>
+
+</section>
+<section>
+
+<p>Http Functionのテストコード例</p>
+
+<pre><code>import myFunctions from "../functions/index";
+
+// Http Functions Testing
+describe("helloworld", () =&gt; {
+  test("should return message", () =&gt; {
+    const req = { query: { text: "input" } };
+    const res = {
+      send: result =&gt; {
+        expect(result).toBe("Hello from Firebase!");
+      }
+    };
+
+    myFunctions.helloWorld(req, res);
+  });
+});
+
+</code></pre>
+
+</section>
+<section>
+
+<p>Firestore Functionの例</p>
+
+<pre><code>exports.createUsername = functions.firestore
+  .document("user/{userId}")
+  .onCreate((snap, context) =&gt; {
+    const newValue = snap.data();
+    const username = newValue.email.split("@")[0];
+    return snap.ref.set({ username }, { merge: true });
+  });
+</code></pre>
+
+</section>
+<section>
+
+<p>Firestore Functionsのテストコード例</p>
+
+<p>(offlineモード)</p>
+
+<pre><code>import myFunctions from "../functions/index";
+import sinon from "sinon";
+const fft = require("firebase-functions-test")();
+
+// Firestore Functions Testing
+describe("createUsername", () =&gt; {
+  test("shoud create username from email", () =&gt; {
+    const setStub = sinon.stub();
+    const snap = {
+      data: () =&gt; ({
+        email: "7nohe@example.com"
+      }),
+      ref: {
+        set: setStub
+      }
+    };
+    setStub.withArgs({ username: "7nohe" }, { merge: true }).returns(true);
+    const wrapped = fft.wrap(myFunctions.createUsername);
+    expect(wrapped(snap, { params: { userId: "user-id-12345" } })).toBe(true);
+  });
+});
+</code></pre>
+
+</section>
+<section>
+
+<h2>感想</h2>
+
+<ul>
+  <li>firebase-functions-testで簡単にnon-Http Functionのテストが書けてよい</li>
+  <li>ただ、offlineだとstub書くのが面倒なので、テスト用プロジェクト用意してonlineモードもあり</li>
+</ul>
+
+</section>
+<section>
+
+<h2>E2Eテストについて考える</h2>
+
+</section>
+<section>
+
+<h3>テスト用プロジェクトを作成して行う</h3>
+
+</section>
+<section>
+
+<ul>
+  <li>
+    <p>今の所、こうするしかないと思う</p>
+  </li>
+  <li>
+    <p>Firestore emulatorが使えるといい</p>
+  </li>
+  <li>
+    <p>DBリセットとかは <code>gcloud beta firestore import</code> コマンドでテストデータをインポートする？</p>
+  </li>
+</ul>
+
+</section>
+<section>
+
+<h3>Firebase Test Lab</h3>
+
+<p><a href="https://firebase.google.com/docs/test-lab/">https://firebase.google.com/docs/test-lab/</a></p>
+
+<p>*Android/iOSのみ</p>
+
+</section>
+<section>
+
+<h3>まとめ</h3>
+
+<ul>
+  <li>Firestore/Functionsのユニットテストだけはしっかりやっていくべき</li>
+  <li>自動化環境も整ってきている</li>
+  <li>E2Eはローカルで完結するような手法があればいいかも</li>
+  <li>もっといい方法があれば教えて欲しいです</li>
+</ul>
+
+</section>
+<section>
+
+<h1>Tank you！</h1>
+
+</section>
